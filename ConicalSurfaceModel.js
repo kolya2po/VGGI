@@ -5,9 +5,9 @@ class ConicalSurfaceModel {
         this.vSteps = vSteps;
 
         // Geometry parameters
-        this.L = L;
-        this.T = T;
-        this.B = B;
+        this.L = L; // length of perpendicular
+        this.T = T;  // Z limit
+        this.B = B; // Y limit
 
         // Parameter ranges that form a closed loop at v=0 and v=1
         this.uMin = 0.0;

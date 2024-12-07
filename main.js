@@ -61,8 +61,8 @@ function initGL() {
     shProgram.iColor = gl.getUniformLocation(prog, "color");
 
     const L = 2.0;     // length of perpendicular
-    const T = 2.0;     // parameter T
-    const B = 0.5;     // max Y when z = T/sqrt(3)
+    const T = 2.0;     // Z limit
+    const B = 0.5;     // Y limit
 
     const uSteps = 50;
     const vSteps = 50;
