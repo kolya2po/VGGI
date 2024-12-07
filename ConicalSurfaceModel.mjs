@@ -1,22 +1,22 @@
-class ConicalSurfaceModel {
-    constructor(gl, uSteps, vSteps, L, T, B) {
-        this.gl = gl;
-        this.uSteps = uSteps;
-        this.vSteps = vSteps;
-        this.L = L;
-        this.T = T;
-        this.B = B;
+export default function ConicalSurfaceModel(gl, uSteps, vSteps, L, T, B)  {
+    this.gl = gl;
+    this.uSteps = uSteps;
+    this.vSteps = vSteps;
+    this.L = L;
+    this.T = T;
+    this.B = B;
 
-        this.uMin = 0.0;
-        this.uMax = 1.0;
-        this.vMin = 0.0;
-        this.vMax = 1.0;
+    this.uMin = 0.0;
+    this.uMax = 1.0;
+    this.vMin = 0.0;
+    this.vMax = 1.0;
 
+    this.init = function () {
         this.createMesh();
         this.initBuffers();
     }
 
-    calculatePosition(u, v, sign) {
+    this.calculatePosition = function (u, v, sign) {
         const X = this.L * (1 - u);
 
         const numerator = 3*(1-v);
@@ -31,7 +31,7 @@ class ConicalSurfaceModel {
         return [X, Y, Z];
     }
 
-    createMesh() {
+    this.createMesh = function () {
         let uCount = this.uSteps+1;
         let vCount = this.vSteps+1;
         let totalVertices = uCount * vCount * 2;
@@ -135,7 +135,7 @@ class ConicalSurfaceModel {
         }
     }
 
-    initBuffers() {
+    this.initBuffers = function () {
         const gl = this.gl;
         this.vertexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
@@ -150,7 +150,7 @@ class ConicalSurfaceModel {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.indices, gl.STATIC_DRAW);
     }
 
-    draw(shaderProgram) {
+    this.draw = function (shaderProgram) {
         const gl = this.gl;
 
         // Bind vertex buffer and set attribute
