@@ -7,25 +7,6 @@ let spaceball;                  // A SimpleRotator object that lets the user rot
 let zoom;                       // Zoom level
 let axes;
 
-// Vertex shader source code
-const vertexShaderSource = `
-    attribute vec3 vertex;
-    uniform mat4 ModelViewProjectionMatrix;
-    void main(void) {
-        gl_Position = ModelViewProjectionMatrix * vec4(vertex, 1.0);
-    }
-`;
-
-// Fragment shader source code
-const fragmentShaderSource = `
-    precision mediump float;
-    uniform vec4 color;
-    void main(void) {
-        gl_FragColor = color;
-    }
-`;
-
-// Constructor
 function ShaderProgram(name, program) {
     this.name = name;
     this.prog = program;
@@ -149,7 +130,7 @@ function init() {
         event.preventDefault(); // Prevent the page from scrolling
         zoom += event.deltaY * -0.001; // Adjust zoom level based on scroll direction
         zoom = Math.min(Math.max(zoom, 0.1), 2); // Limit zoom range
-        draw(); // Redraw the scene
+        draw();
     });
 
     draw();
