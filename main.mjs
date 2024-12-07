@@ -10,7 +10,6 @@ let spaceball;
 let zoom;
 let uSlider, vSlider;
 
-// Introduce light rotation angle
 let lightAngle = 0.0;
 
 function ShaderProgram(name, program) {
