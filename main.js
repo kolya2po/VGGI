@@ -1,37 +1,85 @@
 'use strict';
 
-let gl;                         // The webgl context.
-let surface;                    // A surface model
-let shProgram;                  // A shader program
-let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
-let zoom;                       // Zoom level
+let gl;
+let surface;
+let shProgram;
+let spaceball;
+let zoom;
 let axes;
+let uSlider, vSlider;
 
-// Vertex shader source code
+// Introduce light rotation angle
+let lightAngle = 0.0;
+
+// Vertex shader (Phong per-fragment)
 const vertexShaderSource = `
-    attribute vec3 vertex;
-    uniform mat4 ModelViewProjectionMatrix;
-    void main(void) {
-        gl_Position = ModelViewProjectionMatrix * vec4(vertex, 1.0);
-    }
-`;
+       attribute vec3 vertex;
+       attribute vec3 normal;
+       
+       uniform mat4 ModelViewProjectionMatrix;
+       uniform mat4 ModelViewMatrix;
+       uniform mat3 NormalMatrix;
+       
+       varying vec3 vNormal;
+       varying vec3 vPosition;
+       
+       void main(void) {
+           vec4 pos = ModelViewMatrix * vec4(vertex, 1.0);
+           vPosition = pos.xyz;
+           vNormal = normalize(NormalMatrix * normal);
+           gl_Position = ModelViewProjectionMatrix * vec4(vertex, 1.0);
+       }
+   `;
 
-// Fragment shader source code
+// Fragment shader (Phong lighting)
 const fragmentShaderSource = `
-    precision mediump float;
-    uniform vec4 color;
-    void main(void) {
-        gl_FragColor = color;
-    }
-`;
+       precision mediump float;
 
-// Constructor
+       varying vec3 vNormal;
+       varying vec3 vPosition;
+       
+       uniform vec4 color;
+       uniform vec3 lightPos;   // Light position in eye space
+       uniform vec3 Ka;         // Ambient reflectivity
+       uniform vec3 Kd;         // Diffuse reflectivity
+       uniform vec3 Ks;         // Specular reflectivity
+       uniform float shininess;
+       
+       void main(void) {
+           vec3 N = normalize(vNormal);
+           vec3 L = normalize(lightPos - vPosition);
+           vec3 V = vec3(0,0,1);
+           vec3 R = reflect(-L, N);
+
+           float diffuse = max(dot(N, L), 0.0);
+           float spec = 0.0;
+           if(diffuse > 0.0) {
+               spec = pow(max(dot(R,V), 0.0), shininess);
+           }
+
+           vec3 ambient = Ka;
+           vec3 diff = Kd * diffuse;
+           vec3 specular = Ks * spec;
+
+           vec3 finalColor = ambient + diff + specular;
+           gl_FragColor = vec4(finalColor, 1.0) * color;
+       }
+   `;
+
 function ShaderProgram(name, program) {
     this.name = name;
     this.prog = program;
     this.iAttribVertex = -1;
+    this.iAttribNormal = -1;
     this.iColor = -1;
     this.iModelViewProjectionMatrix = -1;
+    this.iModelViewMatrix = -1;
+    this.iNormalMatrix = -1;
+    this.iLightPos = -1;
+    this.iKa = -1;
+    this.iKd = -1;
+    this.iKs = -1;
+    this.iShininess = -1;
 
     this.Use = function() {
         gl.useProgram(this.prog);
@@ -42,54 +90,91 @@ function draw() {
     gl.clearColor(0,0,0,1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    /* Set the values of the projection transformation */
-    let projection = m4.perspective(Math.PI/8 * zoom, 1, 8, 12);
-
-    /* Get the view matrix from the SimpleRotator object. */
+    let projection = m4.perspective(Math.PI/8, 1, 8, 50);
     let modelView = spaceball.getViewMatrix();
 
-    let rotateToPointZero = m4.axisRotation([0.707,0.707,0], 0.7);
-    let translateToPointZero = m4.translation(0,0,-10);
+    let rotX = m4.xRotation(270 * Math.PI / 180);
+    modelView = m4.multiply(rotX, modelView);
 
-    let matAccum0 = m4.multiply(rotateToPointZero, modelView );
-    let matAccum1 = m4.multiply(translateToPointZero, matAccum0 );
+    let rotY = m4.yRotation(45 * Math.PI / 180);
+    modelView = m4.multiply(rotY, modelView);
 
-    /* Multiply the projection matrix times the modelview matrix to give the
-       combined transformation matrix, and send that to the shader program. */
-    let modelViewProjection = m4.multiply(projection, matAccum1 );
+    let translateToPointZero = m4.translation(0, 0, -15/zoom);
+    modelView = m4.multiply(translateToPointZero, modelView);
 
-    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection );
+    // Update light angle
+    lightAngle += 0.01; // rotate the light around Y-axis
+    let lx = 5.0 * Math.cos(lightAngle);
+    let lz = 5.0 * Math.sin(lightAngle);
+    let ly = 4.0;
+    let lightPos = [lx, ly, lz];
 
-    /* Draw the six faces of a cube, with different colors. */
-    gl.uniform4fv(shProgram.iColor, [1,1,0,1] );
+    // Transform light into eye space:
+    let lightEye = m4.transformPoint(modelView, lightPos);
+
+    let modelViewProjection = m4.multiply(projection, modelView);
+
+    let normalMatrix = m4.inverse(modelView);
+    normalMatrix = m4.transpose(normalMatrix);
+    let normalMatrix3 = [
+        normalMatrix[0],normalMatrix[1],normalMatrix[2],
+        normalMatrix[4],normalMatrix[5],normalMatrix[6],
+        normalMatrix[8],normalMatrix[9],normalMatrix[10]
+    ];
+
+    shProgram.Use();
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
+    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, modelView);
+    gl.uniformMatrix3fv(shProgram.iNormalMatrix, false, normalMatrix3);
+
+    // Set material and light
+    gl.uniform4fv(shProgram.iColor, [1,1,1,1]);
+    gl.uniform3fv(shProgram.iLightPos, lightEye);
+    gl.uniform3fv(shProgram.iKa, [0.2,0.2,0.2]);
+    gl.uniform3fv(shProgram.iKd, [0.8,0.8,0.7]);
+    gl.uniform3fv(shProgram.iKs, [1.0,1.0,1.0]);
+    gl.uniform1f(shProgram.iShininess, 50.0);
 
     surface.draw(shProgram);
 
-    axes.Draw();
+    requestAnimationFrame(draw);
 }
 
-/* Initialize the WebGL context. Called from init() */
 function initGL() {
-    let prog = createProgram( gl, vertexShaderSource, fragmentShaderSource );
+    let prog = createProgram(gl, vertexShaderSource, fragmentShaderSource);
 
-    shProgram = new ShaderProgram('Basic', prog);
+    shProgram = new ShaderProgram('Phong', prog);
     shProgram.Use();
 
     shProgram.iAttribVertex = gl.getAttribLocation(prog, "vertex");
+    shProgram.iAttribNormal = gl.getAttribLocation(prog, "normal");
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
+    shProgram.iModelViewMatrix = gl.getUniformLocation(prog, "ModelViewMatrix");
+    shProgram.iNormalMatrix = gl.getUniformLocation(prog, "NormalMatrix");
     shProgram.iColor = gl.getUniformLocation(prog, "color");
-
-    const L = 2.0;     // length of perpendicular
-    const T = 2.0;     // parameter T
-    const B = 0.5;     // max Y when z = T/sqrt(3)
-
-    const uSteps = 50;
-    const vSteps = 50;
-
-    surface = new ConicalSurfaceModel(gl, uSteps, vSteps, L, T, B);
-    axes = new Axes();
+    shProgram.iLightPos = gl.getUniformLocation(prog, "lightPos");
+    shProgram.iKa = gl.getUniformLocation(prog, "Ka");
+    shProgram.iKd = gl.getUniformLocation(prog, "Kd");
+    shProgram.iKs = gl.getUniformLocation(prog, "Ks");
+    shProgram.iShininess = gl.getUniformLocation(prog, "shininess");
 
     gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+
+    axes = new Axes();
+
+    buildSurface();
+}
+
+function buildSurface() {
+    const L = 2.0;
+    const T = 2.0;
+    const B = 0.5;
+
+    let uSteps = parseInt(uSlider.value);
+    let vSteps = parseInt(vSlider.value);
+
+    surface = new ConicalSurfaceModel(gl, uSteps, vSteps, L, T, B);
 }
 
 function createProgram(gl, vShader, fShader) {
@@ -115,41 +200,36 @@ function createProgram(gl, vShader, fShader) {
     return prog;
 }
 
-/**
- * Initialization function that will be called when the page has loaded
- */
 function init() {
     let canvas;
-    zoom = 1; // Initialize zoom level
+    zoom = 1;
 
-    try {
-        canvas = document.getElementById("webglcanvas");
-        gl = canvas.getContext("webgl");
-        if (!gl) {
-            throw "Browser does not support WebGL";
-        }
-    } catch (e) {
+    canvas = document.getElementById("webglcanvas");
+    gl = canvas.getContext("webgl");
+    if (!gl) {
         document.getElementById("canvas-holder").innerHTML =
             "<p>Sorry, could not get a WebGL graphics context.</p>";
         return;
     }
 
-    try {
-        initGL();  // initialize the WebGL graphics context
-    } catch (e) {
-        document.getElementById("canvas-holder").innerHTML =
-            "<p>Sorry, could not initialize the WebGL graphics context: " + e + "</p>";
-        return;
-    }
+    uSlider = document.getElementById("uSlider");
+    vSlider = document.getElementById("vSlider");
 
-    spaceball = new TrackballRotator(canvas, draw, 0);
+    uSlider.oninput = function() {
+        buildSurface();
+    };
+    vSlider.oninput = function() {
+        buildSurface();
+    };
 
-    // Add zoom event listener
+    initGL();
+    spaceball = new TrackballRotator(canvas, null, 0);
+
+    // Zoom event
     canvas.addEventListener('wheel', function(event) {
-        event.preventDefault(); // Prevent the page from scrolling
-        zoom += event.deltaY * -0.001; // Adjust zoom level based on scroll direction
-        zoom = Math.min(Math.max(zoom, 0.1), 2); // Limit zoom range
-        draw(); // Redraw the scene
+        event.preventDefault();
+        zoom += event.deltaY * -0.001;
+        zoom = Math.min(Math.max(zoom, 0.1), 2);
     });
 
     draw();
