@@ -1,76 +1,28 @@
 'use strict';
+import ConicalSurfaceModel from "./ConicalSurfaceModel.mjs";
+import TrackballRotator from "./Utils/trackball-rotator.mjs";
 
 let gl;
 let surface;
 let shProgram;
 let spaceball;
 let zoom;
-let axes;
 let uSlider, vSlider;
 
-// Introduce light rotation angle
 let lightAngle = 0.0;
 
-// Vertex shader (Phong per-fragment)
-const vertexShaderSource = `
-       attribute vec3 vertex;
-       attribute vec3 normal;
-       
-       uniform mat4 ModelViewProjectionMatrix;
-       uniform mat4 ModelViewMatrix;
-       uniform mat3 NormalMatrix;
-       
-       varying vec3 vNormal;
-       varying vec3 vPosition;
-       
-       void main(void) {
-           vec4 pos = ModelViewMatrix * vec4(vertex, 1.0);
-           vPosition = pos.xyz;
-           vNormal = normalize(NormalMatrix * normal);
-           gl_Position = ModelViewProjectionMatrix * vec4(vertex, 1.0);
-       }
-   `;
-
-// Fragment shader (Phong lighting)
-const fragmentShaderSource = `
-       precision mediump float;
-
-       varying vec3 vNormal;
-       varying vec3 vPosition;
-       
-       uniform vec4 color;
-       uniform vec3 lightPos;   // Light position in eye space
-       uniform vec3 Ka;         // Ambient reflectivity
-       uniform vec3 Kd;         // Diffuse reflectivity
-       uniform vec3 Ks;         // Specular reflectivity
-       uniform float shininess;
-       
-       void main(void) {
-           vec3 N = normalize(vNormal);
-           vec3 L = normalize(lightPos - vPosition);
-           vec3 V = vec3(0,0,1);
-           vec3 R = reflect(-L, N);
-
-           float diffuse = max(dot(N, L), 0.0);
-           float spec = 0.0;
-           if(diffuse > 0.0) {
-               spec = pow(max(dot(R,V), 0.0), shininess);
-           }
-
-           vec3 ambient = Ka;
-           vec3 diff = Kd * diffuse;
-           vec3 specular = Ks * spec;
-
-           vec3 finalColor = ambient + diff + specular;
-           gl_FragColor = vec4(finalColor, 1.0) * color;
-       }
-   `;
+let diffuseTexture, specularTexture, normalTexture;
+let texturesLoaded = 0;
 
 function ShaderProgram(name, program) {
     this.name = name;
     this.prog = program;
+
     this.iAttribVertex = -1;
     this.iAttribNormal = -1;
+    this.iAttribUV = -1;
+    this.iAttribTangent = -1;
+    this.iAttribBitangent = -1;
     this.iColor = -1;
     this.iModelViewProjectionMatrix = -1;
     this.iModelViewMatrix = -1;
@@ -80,13 +32,39 @@ function ShaderProgram(name, program) {
     this.iKd = -1;
     this.iKs = -1;
     this.iShininess = -1;
+    this.iDiffuseTex = -1;
+    this.iSpecularTex = -1;
+    this.iNormalTex = -1;
 
     this.Use = function() {
         gl.useProgram(this.prog);
     }
 }
 
+function loadTexture(url) {
+    const texture = gl.createTexture();
+    texture.image = new Image();
+    texture.image.onload = function() {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(
+            gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,
+            texture.image
+        );
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        texturesLoaded++;
+    }
+    texture.image.src = url;
+    return texture;
+}
+
 function draw() {
+    if (texturesLoaded < 3) {
+        requestAnimationFrame(draw);
+        return;
+    }
+
     gl.clearColor(0,0,0,1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -102,14 +80,12 @@ function draw() {
     let translateToPointZero = m4.translation(0, 0, -15/zoom);
     modelView = m4.multiply(translateToPointZero, modelView);
 
-    // Update light angle
-    lightAngle += 0.01; // rotate the light around Y-axis
+    // Rotate light around Y-axis
+    lightAngle += 0.01;
     let lx = 5.0 * Math.cos(lightAngle);
     let lz = 5.0 * Math.sin(lightAngle);
     let ly = 4.0;
     let lightPos = [lx, ly, lz];
-
-    // Transform light into eye space:
     let lightEye = m4.transformPoint(modelView, lightPos);
 
     let modelViewProjection = m4.multiply(projection, modelView);
@@ -127,13 +103,26 @@ function draw() {
     gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, modelView);
     gl.uniformMatrix3fv(shProgram.iNormalMatrix, false, normalMatrix3);
 
-    // Set material and light
+    // Material and light
     gl.uniform4fv(shProgram.iColor, [1,1,1,1]);
     gl.uniform3fv(shProgram.iLightPos, lightEye);
     gl.uniform3fv(shProgram.iKa, [0.2,0.2,0.2]);
     gl.uniform3fv(shProgram.iKd, [0.8,0.8,0.7]);
     gl.uniform3fv(shProgram.iKs, [1.0,1.0,1.0]);
     gl.uniform1f(shProgram.iShininess, 50.0);
+
+    // Bind textures
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, diffuseTexture);
+    gl.uniform1i(shProgram.iDiffuseTex, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, specularTexture);
+    gl.uniform1i(shProgram.iSpecularTex, 1);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, normalTexture);
+    gl.uniform1i(shProgram.iNormalTex, 2);
 
     surface.draw(shProgram);
 
@@ -148,6 +137,10 @@ function initGL() {
 
     shProgram.iAttribVertex = gl.getAttribLocation(prog, "vertex");
     shProgram.iAttribNormal = gl.getAttribLocation(prog, "normal");
+    shProgram.iAttribUV = gl.getAttribLocation(prog, "uv");
+    shProgram.iAttribTangent = gl.getAttribLocation(prog, "tangent");
+    shProgram.iAttribBitangent = gl.getAttribLocation(prog, "bitangent");
+
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
     shProgram.iModelViewMatrix = gl.getUniformLocation(prog, "ModelViewMatrix");
     shProgram.iNormalMatrix = gl.getUniformLocation(prog, "NormalMatrix");
@@ -157,13 +150,19 @@ function initGL() {
     shProgram.iKd = gl.getUniformLocation(prog, "Kd");
     shProgram.iKs = gl.getUniformLocation(prog, "Ks");
     shProgram.iShininess = gl.getUniformLocation(prog, "shininess");
+    shProgram.iDiffuseTex = gl.getUniformLocation(prog, "diffuseTex");
+    shProgram.iSpecularTex = gl.getUniformLocation(prog, "specularTex");
+    shProgram.iNormalTex = gl.getUniformLocation(prog, "normalTex");
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
 
-    axes = new Axes();
-
     buildSurface();
+
+    // Load textures
+    diffuseTexture = loadTexture("Textures/diffuse.jpg");
+    specularTexture = loadTexture("Textures/specular.jpg");
+    normalTexture = loadTexture("Textures/normal.jpg");
 }
 
 function buildSurface() {
@@ -175,6 +174,7 @@ function buildSurface() {
     let vSteps = parseInt(vSlider.value);
 
     surface = new ConicalSurfaceModel(gl, uSteps, vSteps, L, T, B);
+    surface.init();
 }
 
 function createProgram(gl, vShader, fShader) {
@@ -184,12 +184,14 @@ function createProgram(gl, vShader, fShader) {
     if (!gl.getShaderParameter(vsh, gl.COMPILE_STATUS)) {
         throw new Error("Error in vertex shader:  " + gl.getShaderInfoLog(vsh));
     }
+
     let fsh = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fsh, fShader);
     gl.compileShader(fsh);
     if (!gl.getShaderParameter(fsh, gl.COMPILE_STATUS)) {
         throw new Error("Error in fragment shader:  " + gl.getShaderInfoLog(fsh));
     }
+
     let prog = gl.createProgram();
     gl.attachShader(prog, vsh);
     gl.attachShader(prog, fsh);
@@ -225,7 +227,6 @@ function init() {
     initGL();
     spaceball = new TrackballRotator(canvas, null, 0);
 
-    // Zoom event
     canvas.addEventListener('wheel', function(event) {
         event.preventDefault();
         zoom += event.deltaY * -0.001;
@@ -234,3 +235,5 @@ function init() {
 
     draw();
 }
+
+document.addEventListener("DOMContentLoaded", init);

@@ -39,7 +39,7 @@
  *    Cannot be a multiple of viewpointDirection.  This is just the initial value for
  *    viewUp; it will be modified by rotation.
  */
-function TrackballRotator(canvas, callback, viewDistance, viewpointDirection, viewUp) {
+export default function TrackballRotator(canvas, callback, viewDistance, viewpointDirection, viewUp) {
     var unitx = new Array(3);
     var unity = new Array(3);
     var unitz = new Array(3);
@@ -141,7 +141,7 @@ function TrackballRotator(canvas, callback, viewDistance, viewpointDirection, vi
             callback();
         }
     }
-    function doMouseUp(evt) {
+    function doMouseUp() {
         if (dragging) {
             document.removeEventListener("mousemove", doMouseDrag, false);
             document.removeEventListener("mouseup", doMouseUp, false);
@@ -149,7 +149,7 @@ function TrackballRotator(canvas, callback, viewDistance, viewpointDirection, vi
         }
     }
     function doTouchStart(evt) {
-        if (evt.touches.length != 1) {
+        if (evt.touches.length !== 1) {
            doTouchCancel();
            return;
         }
@@ -160,14 +160,13 @@ function TrackballRotator(canvas, callback, viewDistance, viewpointDirection, vi
         canvas.addEventListener("touchmove", doTouchMove, false);
         canvas.addEventListener("touchend", doTouchEnd, false);
         canvas.addEventListener("touchcancel", doTouchCancel, false);
-        touchStarted = true;
         centerX = canvas.width/2;
         centerY = canvas.height/2;
         var radius = Math.min(centerX,centerY);
         radius2 = radius*radius;
     }
     function doTouchMove(evt) {
-        if (evt.touches.length != 1 || !touchStarted) {
+        if (evt.touches.length !== 1 || !touchStarted) {
            doTouchCancel();
            return;
         }
@@ -184,12 +183,11 @@ function TrackballRotator(canvas, callback, viewDistance, viewpointDirection, vi
             callback();
         }
     }
-    function doTouchEnd(evt) {
+    function doTouchEnd() {
         doTouchCancel();
     }
     function doTouchCancel() {
         if (touchStarted) {
-           touchStarted = false;
            canvas.removeEventListener("touchmove", doTouchMove, false);
            canvas.removeEventListener("touchend", doTouchEnd, false);
            canvas.removeEventListener("touchcancel", doTouchCancel, false);

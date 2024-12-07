@@ -1,22 +1,22 @@
-class ConicalSurfaceModel {
-    constructor(gl, uSteps, vSteps, L, T, B) {
-        this.gl = gl;
-        this.uSteps = uSteps;
-        this.vSteps = vSteps;
-        this.L = L;
-        this.T = T;
-        this.B = B;
+export default function ConicalSurfaceModel(gl, uSteps, vSteps, L, T, B)  {
+    this.gl = gl;
+    this.uSteps = uSteps;
+    this.vSteps = vSteps;
+    this.L = L;
+    this.T = T;
+    this.B = B;
 
-        this.uMin = 0.0;
-        this.uMax = 1.0;
-        this.vMin = 0.0;
-        this.vMax = 1.0;
+    this.uMin = 0.0;
+    this.uMax = 1.0;
+    this.vMin = 0.0;
+    this.vMax = 1.0;
 
+    this.init = function () {
         this.createMesh();
         this.initBuffers();
     }
 
-    calculatePosition(u, v, sign) {
+    this.calculatePosition = function(u, v, sign) {
         const X = this.L * (1 - u);
 
         const numerator = 3*(1-v);
@@ -31,14 +31,31 @@ class ConicalSurfaceModel {
         return [X, Y, Z];
     }
 
-    createMesh() {
+    // Helper to approximate partial derivatives for tangent/bitangent
+    this.partialDerivativeU = function (u, v, sign, delta=0.0001) {
+        let p1 = this.calculatePosition(u, v, sign);
+        let p2 = this.calculatePosition(u+delta, v, sign);
+        return [p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]];
+    }
+
+    this.partialDerivativeV = function (u, v, sign, delta=0.0001) {
+        let p1 = this.calculatePosition(u, v, sign);
+        let p2 = this.calculatePosition(u, v+delta, sign);
+        return [p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]];
+    }
+
+    this.createMesh = function () {
         let uCount = this.uSteps+1;
         let vCount = this.vSteps+1;
         let totalVertices = uCount * vCount * 2;
 
         this.vertexPositions = new Float32Array(totalVertices * 3);
+        this.vertexNormals = new Float32Array(totalVertices * 3);
+        this.vertexUV = new Float32Array(totalVertices * 2);
+        this.vertexTangents = new Float32Array(totalVertices * 3);
+        this.vertexBitangents = new Float32Array(totalVertices * 3);
 
-        // Fill vertex positions for both + and - branches
+        // Fill vertex positions, UVs, tangents, bitangents
         for (let v=0; v<vCount; v++) {
             let vv = this.vMin + (this.vMax - this.vMin)*v/this.vSteps;
             for (let u=0; u<uCount; u++) {
@@ -49,13 +66,46 @@ class ConicalSurfaceModel {
                 let plusIndex = v*uCount + u;
                 let minusIndex = plusIndex + (vCount*uCount);
 
-                this.vertexPositions[plusIndex * 3] = pPlus[0];
+                // Positions
+                this.vertexPositions[plusIndex*3]   = pPlus[0];
                 this.vertexPositions[plusIndex*3+1] = pPlus[1];
                 this.vertexPositions[plusIndex*3+2] = pPlus[2];
 
-                this.vertexPositions[minusIndex * 3] = pMinus[0];
+                this.vertexPositions[minusIndex*3]   = pMinus[0];
                 this.vertexPositions[minusIndex*3+1] = pMinus[1];
                 this.vertexPositions[minusIndex*3+2] = pMinus[2];
+
+                // UVs (simple mapping)
+                let uCoord = u / this.uSteps;
+                let vCoord = v / this.vSteps;
+                this.vertexUV[plusIndex*2]   = uCoord;
+                this.vertexUV[plusIndex*2+1] = vCoord;
+                this.vertexUV[minusIndex*2]   = uCoord;
+                this.vertexUV[minusIndex*2+1] = vCoord;
+
+                // Tangent/Bitangent approximation
+                let dPdu_plus = this.partialDerivativeU(uu,vv,+1);
+                let dPdv_plus = this.partialDerivativeV(uu,vv,+1);
+
+                let dPdu_minus = this.partialDerivativeU(uu,vv,-1);
+                let dPdv_minus = this.partialDerivativeV(uu,vv,-1);
+
+                // Just store them; normalization and orthogonalization done in vertex shader
+                this.vertexTangents[plusIndex*3]   = dPdu_plus[0];
+                this.vertexTangents[plusIndex*3+1] = dPdu_plus[1];
+                this.vertexTangents[plusIndex*3+2] = dPdu_plus[2];
+
+                this.vertexBitangents[plusIndex*3]   = dPdv_plus[0];
+                this.vertexBitangents[plusIndex*3+1] = dPdv_plus[1];
+                this.vertexBitangents[plusIndex*3+2] = dPdv_plus[2];
+
+                this.vertexTangents[minusIndex*3]   = dPdu_minus[0];
+                this.vertexTangents[minusIndex*3+1] = dPdu_minus[1];
+                this.vertexTangents[minusIndex*3+2] = dPdu_minus[2];
+
+                this.vertexBitangents[minusIndex*3]   = dPdv_minus[0];
+                this.vertexBitangents[minusIndex*3+1] = dPdv_minus[1];
+                this.vertexBitangents[minusIndex*3+2] = dPdv_minus[2];
             }
         }
 
@@ -94,7 +144,6 @@ class ConicalSurfaceModel {
         this.indices = new Uint16Array(indices);
 
         // Compute facet-average normals
-        this.vertexNormals = new Float32Array(totalVertices*3);
         let faceCount = this.indices.length/3;
         let tempNormals = new Array(totalVertices);
         for (let i=0; i<totalVertices; i++) tempNormals[i] = [0,0,0];
@@ -120,7 +169,6 @@ class ConicalSurfaceModel {
             tempNormals[i3][0]+=Nx; tempNormals[i3][1]+=Ny; tempNormals[i3][2]+=Nz;
         }
 
-        // Normalize the normals
         for (let i=0; i<totalVertices; i++){
             let len = Math.sqrt(tempNormals[i][0]*tempNormals[i][0] + tempNormals[i][1]*tempNormals[i][1] + tempNormals[i][2]*tempNormals[i][2]);
             if (len > 0.000001) {
@@ -135,35 +183,68 @@ class ConicalSurfaceModel {
         }
     }
 
-    initBuffers() {
+    this.initBuffers = function() {
         const gl = this.gl;
+
+        // Position buffer
         this.vertexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, this.vertexPositions, gl.STATIC_DRAW);
 
+        // Normal buffer
         this.normalBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, this.vertexNormals, gl.STATIC_DRAW);
 
+        // UV buffer
+        this.uvBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this.vertexUV, gl.STATIC_DRAW);
+
+        // Tangent buffer
+        this.tangentBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this.vertexTangents, gl.STATIC_DRAW);
+
+        // Bitangent buffer
+        this.bitangentBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.bitangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this.vertexBitangents, gl.STATIC_DRAW);
+
+        // Index buffer
         this.indexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.indices, gl.STATIC_DRAW);
     }
 
-    draw(shaderProgram) {
+    this.draw = function (shaderProgram) {
         const gl = this.gl;
 
-        // Bind vertex buffer and set attribute
+        // Positions
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.vertexAttribPointer(shaderProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shaderProgram.iAttribVertex);
 
-        // Bind normal buffer and set attribute
+        // Normals
         gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer);
         gl.vertexAttribPointer(shaderProgram.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shaderProgram.iAttribNormal);
 
-        // Bind index buffer
+        // UV
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
+        gl.vertexAttribPointer(shaderProgram.iAttribUV, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shaderProgram.iAttribUV);
+
+        // Tangent
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tangentBuffer);
+        gl.vertexAttribPointer(shaderProgram.iAttribTangent, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shaderProgram.iAttribTangent);
+
+        // Bitangent
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.bitangentBuffer);
+        gl.vertexAttribPointer(shaderProgram.iAttribBitangent, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shaderProgram.iAttribBitangent);
+
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
 
         // Draw the triangles

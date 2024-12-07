@@ -1,10 +1,8 @@
-class Axes {
-    constructor() {
-        this.iVertexBuffer = gl.createBuffer();
-        this.CreateAxesData();
-    }
+export default function Axes(gl) {
+    this.iVertexBuffer = gl.createBuffer();
+    this.CreateAxesData();
 
-    CreateAxesData() {
+    this.CreateAxesData= function(){
         const axesVertices = [
             -1, 0, 0,   5, 0, 0,
             0, -1, 0,   0, 5, 0,
@@ -15,7 +13,7 @@ class Axes {
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(axesVertices), gl.STATIC_DRAW);
     }
 
-    Draw() {
+    this.Draw = function(shProgram) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribVertex);
