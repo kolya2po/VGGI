@@ -80,12 +80,14 @@ function draw() {
     let translateToPointZero = m4.translation(0, 0, -15/zoom);
     modelView = m4.multiply(translateToPointZero, modelView);
 
-    // Rotate light around Y-axis
-    lightAngle += 0.01;
+    // Update light angle
+    lightAngle += 0.01; // rotate the light around Y-axis
     let lx = 5.0 * Math.cos(lightAngle);
     let lz = 5.0 * Math.sin(lightAngle);
     let ly = 4.0;
     let lightPos = [lx, ly, lz];
+
+    // Transform light into eye space:
     let lightEye = m4.transformPoint(modelView, lightPos);
 
     let modelViewProjection = m4.multiply(projection, modelView);
@@ -103,7 +105,7 @@ function draw() {
     gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, modelView);
     gl.uniformMatrix3fv(shProgram.iNormalMatrix, false, normalMatrix3);
 
-    // Material and light
+    // Set material and light
     gl.uniform4fv(shProgram.iColor, [1,1,1,1]);
     gl.uniform3fv(shProgram.iLightPos, lightEye);
     gl.uniform3fv(shProgram.iKa, [0.2,0.2,0.2]);
@@ -184,14 +186,12 @@ function createProgram(gl, vShader, fShader) {
     if (!gl.getShaderParameter(vsh, gl.COMPILE_STATUS)) {
         throw new Error("Error in vertex shader:  " + gl.getShaderInfoLog(vsh));
     }
-
     let fsh = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fsh, fShader);
     gl.compileShader(fsh);
     if (!gl.getShaderParameter(fsh, gl.COMPILE_STATUS)) {
         throw new Error("Error in fragment shader:  " + gl.getShaderInfoLog(fsh));
     }
-
     let prog = gl.createProgram();
     gl.attachShader(prog, vsh);
     gl.attachShader(prog, fsh);
@@ -227,6 +227,7 @@ function init() {
     initGL();
     spaceball = new TrackballRotator(canvas, null, 0);
 
+    // Zoom event
     canvas.addEventListener('wheel', function(event) {
         event.preventDefault();
         zoom += event.deltaY * -0.001;

@@ -3,7 +3,7 @@
  * of a WebGL scene about the origin.  Only the first parameter to the constructor is required.
  * When an object is created, mouse event handlers are set up on the canvas to respond to rotation.
  * It will also work with a touchscreen.
- * 
+ *
  * The class defines the following methods for an object rotator of type SimpleRotator:
  *
  *    rotator.getViewMatrix() returns the view transformation matrix as a regular JavaScript
@@ -44,7 +44,7 @@ export default function TrackballRotator(canvas, callback, viewDistance, viewpoi
     var unity = new Array(3);
     var unitz = new Array(3);
     var viewZ;  // view distance; z-coord in eye coordinates;
-    var center; // center of view; rotation is about this point; default is [0,0,0] 
+    var center; // center of view; rotation is about this point; default is [0,0,0]
     this.setView = function( viewDistance, viewpointDirection, viewUp ) {
         unitz = (viewpointDirection === undefined)? [0,0,10] : viewpointDirection;
         viewUp = (viewUp === undefined)? [0,1,0] : viewUp;
@@ -58,9 +58,9 @@ export default function TrackballRotator(canvas, callback, viewDistance, viewpoi
     };
     this.getViewMatrix = function() {
         var mat = [ unitx[0], unity[0], unitz[0], 0,
-                unitx[1], unity[1], unitz[1], 0, 
-                unitx[2], unity[2], unitz[2], 0,
-                0, 0, 0, 1 ];
+            unitx[1], unity[1], unitz[1], 0,
+            unitx[2], unity[2], unitz[2], 0,
+            0, 0, 0, 1 ];
         if (center !== undefined) {  // multiply on left by translation by rotationCenter, on right by translation by -rotationCenter
             var t0 = center[0] - mat[0]*center[0] - mat[4]*center[1] - mat[8]*center[2];
             var t1 = center[1] - mat[1]*center[0] - mat[5]*center[1] - mat[9]*center[2];
@@ -114,7 +114,7 @@ export default function TrackballRotator(canvas, callback, viewDistance, viewpoi
     var dragging = false;
     function doMouseDown(evt) {
         if (dragging)
-           return;
+            return;
         dragging = true;
         centerX = canvas.width/2;
         centerY = canvas.height/2;
@@ -128,7 +128,7 @@ export default function TrackballRotator(canvas, callback, viewDistance, viewpoi
     }
     function doMouseDrag(evt) {
         if (!dragging)
-           return;
+            return;
         var box = canvas.getBoundingClientRect();
         var x = evt.clientX - box.left;
         var y = evt.clientY - box.top;
@@ -150,8 +150,8 @@ export default function TrackballRotator(canvas, callback, viewDistance, viewpoi
     }
     function doTouchStart(evt) {
         if (evt.touches.length !== 1) {
-           doTouchCancel();
-           return;
+            doTouchCancel();
+            return;
         }
         evt.preventDefault();
         var r = canvas.getBoundingClientRect();
@@ -167,8 +167,8 @@ export default function TrackballRotator(canvas, callback, viewDistance, viewpoi
     }
     function doTouchMove(evt) {
         if (evt.touches.length !== 1 || !touchStarted) {
-           doTouchCancel();
-           return;
+            doTouchCancel();
+            return;
         }
         evt.preventDefault();
         var r = canvas.getBoundingClientRect();
@@ -188,25 +188,25 @@ export default function TrackballRotator(canvas, callback, viewDistance, viewpoi
     }
     function doTouchCancel() {
         if (touchStarted) {
-           canvas.removeEventListener("touchmove", doTouchMove, false);
-           canvas.removeEventListener("touchend", doTouchEnd, false);
-           canvas.removeEventListener("touchcancel", doTouchCancel, false);
+            canvas.removeEventListener("touchmove", doTouchMove, false);
+            canvas.removeEventListener("touchend", doTouchEnd, false);
+            canvas.removeEventListener("touchcancel", doTouchCancel, false);
         }
     }
     function toRay(x,y) {  // converts a point (x,y) in pixel coords to a 3D ray by mapping interior of
-                           // a circle in the plane to a hemisphere with that circle as equator.
-       var dx = x - centerX;
-       var dy = centerY - y;
-       var vx = dx * unitx[0] + dy * unity[0];  // The mouse point as a vector in the image plane.
-       var vy = dx * unitx[1] + dy * unity[1];
-       var vz = dx * unitx[2] + dy * unity[2];
-       var dist2 = vx*vx + vy*vy + vz*vz;
-       if (dist2 > radius2) {  // Map a point ouside the circle to itself
-          return [vx,vy,vz];
-       }
-       else {
-          var z = Math.sqrt(radius2 - dist2);
-          return  [vx+z*unitz[0], vy+z*unitz[1], vz+z*unitz[2]];
+        // a circle in the plane to a hemisphere with that circle as equator.
+        var dx = x - centerX;
+        var dy = centerY - y;
+        var vx = dx * unitx[0] + dy * unity[0];  // The mouse point as a vector in the image plane.
+        var vy = dx * unitx[1] + dy * unity[1];
+        var vz = dx * unitx[2] + dy * unity[2];
+        var dist2 = vx*vx + vy*vy + vz*vz;
+        if (dist2 > radius2) {  // Map a point ouside the circle to itself
+            return [vx,vy,vz];
+        }
+        else {
+            var z = Math.sqrt(radius2 - dist2);
+            return  [vx+z*unitz[0], vy+z*unitz[1], vz+z*unitz[2]];
         }
     }
     function dot(v,w) {
@@ -250,5 +250,3 @@ export default function TrackballRotator(canvas, callback, viewDistance, viewpoi
         c[2] = z;
     }
 }
-
-
