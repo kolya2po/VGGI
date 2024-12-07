@@ -217,7 +217,7 @@ export default function ConicalSurfaceModel(gl, uSteps, vSteps, L, T, B)  {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.indices, gl.STATIC_DRAW);
     }
 
-    draw(shaderProgram) {
+    this.draw = function (shaderProgram) {
         const gl = this.gl;
 
         // Positions
