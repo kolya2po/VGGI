@@ -6,7 +6,8 @@ let gl;
 let surface;
 let shProgram;
 let spaceball;
-let zoom;
+let zoom = 1.0;
+
 let uSlider, vSlider, scaleSlider;
 
 let diffuseTexture, specularTexture, normalTexture;
