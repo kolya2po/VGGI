@@ -14,6 +14,9 @@ let lightAngle = 0.0;
 let diffuseTexture, specularTexture, normalTexture;
 let texturesLoaded = 0;
 
+let uRotationCenter = [0.5, 0.5];
+let uRotationAngle = 0.0;
+
 function ShaderProgram(name, program) {
     this.name = name;
     this.prog = program;
@@ -36,9 +39,12 @@ function ShaderProgram(name, program) {
     this.iSpecularTex = -1;
     this.iNormalTex = -1;
 
+    this.iRotationAngle = -1;
+    this.iRotationCenter = -1;
+
     this.Use = function() {
         gl.useProgram(this.prog);
-    }
+    };
 }
 
 function loadTexture(url) {
@@ -54,7 +60,7 @@ function loadTexture(url) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.bindTexture(gl.TEXTURE_2D, null);
         texturesLoaded++;
-    }
+    };
     texture.image.src = url;
     return texture;
 }
@@ -95,9 +101,9 @@ function draw() {
     let normalMatrix = m4.inverse(modelView);
     normalMatrix = m4.transpose(normalMatrix);
     let normalMatrix3 = [
-        normalMatrix[0],normalMatrix[1],normalMatrix[2],
-        normalMatrix[4],normalMatrix[5],normalMatrix[6],
-        normalMatrix[8],normalMatrix[9],normalMatrix[10]
+        normalMatrix[0], normalMatrix[1], normalMatrix[2],
+        normalMatrix[4], normalMatrix[5], normalMatrix[6],
+        normalMatrix[8], normalMatrix[9], normalMatrix[10]
     ];
 
     shProgram.Use();
@@ -126,6 +132,9 @@ function draw() {
     gl.bindTexture(gl.TEXTURE_2D, normalTexture);
     gl.uniform1i(shProgram.iNormalTex, 2);
 
+    gl.uniform1f(shProgram.iRotationAngle, uRotationAngle);
+    gl.uniform2f(shProgram.iRotationCenter, uRotationCenter[0], uRotationCenter[1]);
+
     surface.draw(shProgram);
 
     requestAnimationFrame(draw);
@@ -137,24 +146,29 @@ function initGL() {
     shProgram = new ShaderProgram('Phong', prog);
     shProgram.Use();
 
-    shProgram.iAttribVertex = gl.getAttribLocation(prog, "vertex");
-    shProgram.iAttribNormal = gl.getAttribLocation(prog, "normal");
-    shProgram.iAttribUV = gl.getAttribLocation(prog, "uv");
-    shProgram.iAttribTangent = gl.getAttribLocation(prog, "tangent");
-    shProgram.iAttribBitangent = gl.getAttribLocation(prog, "bitangent");
+    shProgram.iAttribVertex   = gl.getAttribLocation(prog, "vertex");
+    shProgram.iAttribNormal   = gl.getAttribLocation(prog, "normal");
+    shProgram.iAttribUV       = gl.getAttribLocation(prog, "uv");
+    shProgram.iAttribTangent  = gl.getAttribLocation(prog, "tangent");
+    shProgram.iAttribBitangent= gl.getAttribLocation(prog, "bitangent");
 
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
-    shProgram.iModelViewMatrix = gl.getUniformLocation(prog, "ModelViewMatrix");
-    shProgram.iNormalMatrix = gl.getUniformLocation(prog, "NormalMatrix");
-    shProgram.iColor = gl.getUniformLocation(prog, "color");
-    shProgram.iLightPos = gl.getUniformLocation(prog, "lightPos");
-    shProgram.iKa = gl.getUniformLocation(prog, "Ka");
-    shProgram.iKd = gl.getUniformLocation(prog, "Kd");
-    shProgram.iKs = gl.getUniformLocation(prog, "Ks");
+    shProgram.iModelViewMatrix           = gl.getUniformLocation(prog, "ModelViewMatrix");
+    shProgram.iNormalMatrix              = gl.getUniformLocation(prog, "NormalMatrix");
+
+    shProgram.iColor     = gl.getUniformLocation(prog, "color");
+    shProgram.iLightPos  = gl.getUniformLocation(prog, "lightPos");
+    shProgram.iKa        = gl.getUniformLocation(prog, "Ka");
+    shProgram.iKd        = gl.getUniformLocation(prog, "Kd");
+    shProgram.iKs        = gl.getUniformLocation(prog, "Ks");
     shProgram.iShininess = gl.getUniformLocation(prog, "shininess");
-    shProgram.iDiffuseTex = gl.getUniformLocation(prog, "diffuseTex");
+
+    shProgram.iDiffuseTex  = gl.getUniformLocation(prog, "diffuseTex");
     shProgram.iSpecularTex = gl.getUniformLocation(prog, "specularTex");
-    shProgram.iNormalTex = gl.getUniformLocation(prog, "normalTex");
+    shProgram.iNormalTex   = gl.getUniformLocation(prog, "normalTex");
+
+    shProgram.iRotationAngle = gl.getUniformLocation(prog, "uRotationAngle");
+    shProgram.iRotationCenter = gl.getUniformLocation(prog, "uRotationCenter");
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -162,9 +176,9 @@ function initGL() {
     buildSurface();
 
     // Load textures
-    diffuseTexture = loadTexture("Textures/diffuse.jpg");
+    diffuseTexture  = loadTexture("Textures/diffuse.jpg");
     specularTexture = loadTexture("Textures/specular.jpg");
-    normalTexture = loadTexture("Textures/normal.jpg");
+    normalTexture   = loadTexture("Textures/normal.jpg");
 }
 
 function buildSurface() {
@@ -232,6 +246,40 @@ function init() {
         event.preventDefault();
         zoom += event.deltaY * -0.001;
         zoom = Math.min(Math.max(zoom, 0.1), 2);
+    });
+
+    window.addEventListener("keydown", function(e) {
+        let step = 0.01;
+        switch(e.key) {
+            case 'a':
+            case 'A':
+                uRotationCenter[0] += step;
+                if(uRotationCenter[0] > 1.0) uRotationCenter[0] = 1.0;
+                break;
+            case 'd':
+            case 'D':
+                uRotationCenter[0] -= step;
+                if(uRotationCenter[0] < 0.0) uRotationCenter[0] = 0.0;
+                break;
+            case 'w':
+            case 'W':
+                uRotationCenter[1] += step;
+                if(uRotationCenter[1] > 1.0) uRotationCenter[1] = 1.0;
+                break;
+            case 's':
+            case 'S':
+                uRotationCenter[1] -= step;
+                if(uRotationCenter[1] < 0.0) uRotationCenter[1] = 0.0;
+                break;
+            case 'q':
+            case 'Q':
+                uRotationAngle += 0.05;
+                break;
+            case 'e':
+            case 'E':
+                uRotationAngle -= 0.05;
+                break;
+        }
     });
 
     draw();
