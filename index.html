@@ -14,6 +14,9 @@
 
       #controls {
          margin: 20px;
+         display: flex;
+         flex-direction: column;
+         align-items: center;
       }
 
       label {
@@ -42,16 +45,15 @@
 <div id="controls">
    <label>uSteps: <input type="range" id="uSlider" min="30" max="150" value="70"/></label>
    <label>vSteps: <input type="range" id="vSlider" min="30" max="150" value="70"/></label>
+   <br />
+   <label>Texture Scale: <input type="range" id="scaleSlider" min="50" max="300" value="100"/></label>
+   <br />
+   <p>
+      Use A/D to move highlight point along the u direction.<br>
+      Use W/S to move highlight point along the v direction.<br>
+      Mouse drag rotates the surface; mouse wheel zooms.
+   </p>
 </div>
-
-<p id="message">
-   Drag your mouse on the surface to rotate it.<br>
-   Use <b>W, S</b> to move pivot in <b>V</b> direction,
-   <b>A, D</b> to move pivot in <b>U</b> direction,<br>
-   <b>Q, E</b> to rotate texture around pivot.
-   <br><br>
-   (On a touch screen, you can use your finger.)
-</p>
 
 <div id="canvas-holder">
    <canvas width="1000" height="700" id="webglcanvas"></canvas>
